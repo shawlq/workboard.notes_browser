@@ -1,0 +1,55 @@
+# Notes Browser
+
+本地 Markdown / 文本笔记 Web 浏览与编辑服务。笔记目录默认 `~/workdir/workboard/notes`，服务默认端口 `8766`。
+
+## 快速使用
+
+```bash
+cd ~/workdir/workboard/notes_browser
+./service.sh start     # 后台启动（推荐）
+./service.sh stop
+./service.sh restart
+./service.sh status
+```
+
+- 访问：`http://127.0.0.1:8766`（局域网 / Tailscale 也可，见启动日志）
+- 日志：`service.log`；PID：`.service.pid`
+- 前台调试：`./run.sh`（首次会建 `.venv` 并装依赖）
+- 改 `config.json` 后需重启
+
+## 配置
+
+`config.json`：
+
+```json
+{
+  "host": "0.0.0.0",
+  "port": 8766,
+  "notes_dir": "~/workdir/workboard/notes"
+}
+```
+
+- `notes_dir` 支持 `~`；必须已存在目录
+- `host=0.0.0.0` 时本机 / 局域网 / Tailscale 均可访问
+
+## 行为摘要（给 AI）
+
+- 左侧目录树（跳过 `.git` 等隐藏项）；右侧预览 / 编辑
+- `*.md` 可 Markdown 预览或源码编辑；其它文本直接编辑
+- 停止输入约 500ms 后自动保存到 `notes_dir`
+- UI「扩展菜单 >>」→「git同步」：在 `notes_dir` 执行 `git pull` → `git add .` → `git commit -m"update"` → `git push`
+- 技术栈：FastAPI + uvicorn；入口 `app.main:app`；静态页 `static/`
+
+## API
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/config` | 公开配置 |
+| GET | `/api/tree` | 目录树 |
+| GET | `/api/file?path=` | 读文件 |
+| PUT | `/api/file` | 写文件 `{path, content}` |
+| POST | `/api/mkdir` | 建目录 `{parent, name}` |
+| POST | `/api/create-file` | 建文件 `{parent, name}` |
+| POST | `/api/rename` | 重命名 `{path, new_name}` |
+| POST | `/api/delete` | 删除 `{path}` |
+| POST | `/api/git/sync` | git 同步 |

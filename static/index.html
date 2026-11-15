@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Notes Browser</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-head">
+        <h1>Notes Browser</h1>
+        <button type="button" class="icon-btn" id="btn-collapse" title="收起侧栏" aria-label="收起侧栏">«</button>
+      </div>
+      <div class="sidebar-meta" id="notes-dir-label"></div>
+      <div class="tree-toolbar" role="toolbar" aria-label="目录操作">
+        <button type="button" class="tool-btn" id="btn-new-dir" title="新建目录" aria-label="新建目录">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <path fill="currentColor" d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2zm1 5h2v3h3v2h-3v3h-2v-3H8v-2h3V9z"/>
+          </svg>
+        </button>
+        <button type="button" class="tool-btn" id="btn-new-file" title="新建文件" aria-label="新建文件">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <path fill="currentColor" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm1 7V3.5L19.5 9H15zM11 11h2v3h3v2h-3v3h-2v-3H8v-2h3v-3z"/>
+          </svg>
+        </button>
+        <button type="button" class="tool-btn danger" id="btn-delete" title="删除选中项" aria-label="删除选中项">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <path fill="currentColor" d="M6 7h12v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7zm3-4h6l1 1h4v2H4V4h4l1-1zm1 6v9h2V9H10zm4 0v9h2V9h-2z"/>
+          </svg>
+        </button>
+      </div>
+      <div class="tree-wrap">
+        <ul class="tree" id="tree" aria-label="笔记目录"></ul>
+      </div>
+      <div class="sidebar-foot">
+        <button type="button" class="ext-toggle" id="btn-ext" aria-expanded="false">
+          扩展菜单 <span class="chevron" id="ext-chevron">>></span>
+        </button>
+        <div class="ext-menu" id="ext-menu" hidden>
+          <button type="button" class="ext-item" id="btn-git-sync">git同步</button>
+        </div>
+      </div>
+    </aside>
+    <div class="sidebar-resizer" id="sidebar-resizer" title="拖拽调整侧栏宽度" role="separator" aria-orientation="vertical" aria-label="调整侧栏宽度"></div>
+
+    <button type="button" class="sidebar-reopen" id="btn-reopen" hidden title="展开侧栏">»</button>
+
+    <main class="main">
+      <header class="main-head">
+        <div class="file-title">
+          <span id="current-path">未选择文件</span>
+          <span class="save-status" id="save-status" aria-live="polite"></span>
+        </div>
+        <div class="mode-tabs" id="mode-tabs" hidden>
+          <button type="button" class="tab active" data-mode="preview" id="tab-preview">预览</button>
+          <button type="button" class="tab" data-mode="edit" id="tab-edit">编辑</button>
+        </div>
+      </header>
+
+      <div class="content">
+        <div class="placeholder" id="placeholder">从左侧选择一个文件开始浏览</div>
+        <article class="preview markdown-body" id="preview" hidden></article>
+        <textarea class="editor" id="editor" hidden spellcheck="false"></textarea>
+      </div>
+    </main>
+  </div>
+
+  <div class="status-bar" id="status-bar" hidden role="status" aria-live="polite">
+    <pre id="status-text"></pre>
+    <button type="button" class="status-close" id="status-close" aria-label="关闭">×</button>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

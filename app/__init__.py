@@ -1,0 +1,1 @@
+"""Notes Browser application package."""
