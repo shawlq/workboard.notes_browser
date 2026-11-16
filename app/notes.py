@@ -228,3 +228,44 @@ def rename_entry(rel: str, new_name: str) -> dict:
     new_rel = join_rel(parent_rel(rel), new_name)
     kind = "dir" if dest.is_dir() else "file"
     return {"ok": True, "path": new_rel, "from": rel, "type": kind}
+
+
+def upload_file(parent: str, filename: str, content: bytes, overwrite: bool = False) -> dict:
+    name = validate_entry_name(filename)
+    rel = join_rel(parent, name)
+    path = resolve_under_notes(rel)
+    if path.exists():
+        if not path.is_file():
+            raise HTTPException(status_code=400, detail="path is not a file")
+        if not overwrite:
+            raise HTTPException(status_code=409, detail="already exists")
+    if not is_probably_text(path):
+        raise HTTPException(status_code=415, detail="unsupported file type")
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise HTTPException(status_code=415, detail="file is not valid UTF-8 text") from exc
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as tmp:
+            tmp.write(text)
+            tmp.flush()
+            os.fsync(tmp.fileno())
+        os.replace(tmp_name, path)
+    except Exception:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
+    return {"ok": True, "path": rel, "type": "file"}
+
+
+def resolve_download(rel: str) -> Path:
+    path = resolve_under_notes(rel)
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="file not found")
+    return path

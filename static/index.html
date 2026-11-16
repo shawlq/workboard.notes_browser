@@ -32,6 +32,17 @@
             <path fill="currentColor" d="M6 7h12v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7zm3-4h6l1 1h4v2H4V4h4l1-1zm1 6v9h2V9H10zm4 0v9h2V9h-2z"/>
           </svg>
         </button>
+        <button type="button" class="tool-btn" id="btn-upload" title="上传文件" aria-label="上传文件">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <path fill="currentColor" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm4 18H6V4h7v5h5v11zm-6-3h2v-4.17l1.59 1.59L17 13l-5-5-5 5 1.41 1.41L12 12.83V17z"/>
+          </svg>
+        </button>
+        <button type="button" class="tool-btn" id="btn-download" title="下载文件" aria-label="下载文件">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <path fill="currentColor" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm4 18H6V4h7v5h5v11zm-6-2 5-5-1.41-1.41L13 14.17V9h-2v5.17l-2.59-2.58L7 13l5 5z"/>
+          </svg>
+        </button>
+        <input type="file" id="file-upload-input" hidden />
       </div>
       <div class="tree-wrap">
         <ul class="tree" id="tree" aria-label="笔记目录"></ul>

@@ -11,6 +11,9 @@
     btnNewDir: document.getElementById("btn-new-dir"),
     btnNewFile: document.getElementById("btn-new-file"),
     btnDelete: document.getElementById("btn-delete"),
+    btnUpload: document.getElementById("btn-upload"),
+    btnDownload: document.getElementById("btn-download"),
+    fileUploadInput: document.getElementById("file-upload-input"),
     btnExt: document.getElementById("btn-ext"),
     extMenu: document.getElementById("ext-menu"),
     extChevron: document.getElementById("ext-chevron"),
@@ -389,6 +392,95 @@
     }
   }
 
+  async function postUpload(file, parent, overwrite) {
+    const form = new FormData();
+    form.append("file", file, file.name);
+    form.append("parent", parent || "");
+    form.append("overwrite", overwrite ? "true" : "false");
+    const res = await fetch("/api/upload", { method: "POST", body: form });
+    let data = null;
+    const text = await res.text();
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = { detail: text };
+    }
+    if (!res.ok) {
+      const detail = data?.detail || res.statusText || "request failed";
+      const err = new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+      err.status = res.status;
+      throw err;
+    }
+    return data;
+  }
+
+  function triggerUpload() {
+    els.fileUploadInput.value = "";
+    els.fileUploadInput.click();
+  }
+
+  async function handleUploadSelected() {
+    const file = els.fileUploadInput.files && els.fileUploadInput.files[0];
+    els.fileUploadInput.value = "";
+    if (!file) return;
+    const parent = targetParent();
+    try {
+      let data;
+      try {
+        data = await postUpload(file, parent, false);
+      } catch (err) {
+        if (err.status === 409) {
+          const rel = parent ? `${parent}/${file.name}` : file.name;
+          if (!window.confirm(`文件已存在：\n${rel}\n是否覆盖？`)) return;
+          data = await postUpload(file, parent, true);
+        } else {
+          throw err;
+        }
+      }
+      state.collapsed.delete(parent);
+      await loadTree();
+      await openFile(data.path);
+      showStatus(`已上传: ${data.path}`, "ok", 4000);
+    } catch (err) {
+      showStatus(`上传失败: ${err.message}`, "error", 8000);
+    }
+  }
+
+  async function downloadSelected() {
+    if (!state.selectedPath || state.selectedType !== "file") {
+      showStatus("请先选中要下载的文件", "error", 5000);
+      return;
+    }
+    try {
+      await flushSave();
+      const path = state.selectedPath;
+      const res = await fetch(`/api/download?path=${encodeURIComponent(path)}`);
+      if (!res.ok) {
+        let detail = res.statusText || "request failed";
+        try {
+          const data = await res.json();
+          if (data?.detail) {
+            detail = typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail);
+          }
+        } catch {
+          /* ignore */
+        }
+        throw new Error(detail);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = baseName(path);
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      showStatus(`下载失败: ${err.message}`, "error", 8000);
+    }
+  }
+
   function beginRename(li) {
     if (state.renaming || !li) return;
     const path = li.dataset.path;
@@ -584,6 +676,15 @@
   });
   els.btnDelete.addEventListener("click", () => {
     deleteSelected();
+  });
+  els.btnUpload.addEventListener("click", () => {
+    triggerUpload();
+  });
+  els.fileUploadInput.addEventListener("change", () => {
+    handleUploadSelected();
+  });
+  els.btnDownload.addEventListener("click", () => {
+    downloadSelected();
   });
 
   function setExtMenuOpen(open) {

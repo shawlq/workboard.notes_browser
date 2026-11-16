@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, File, Form, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -82,6 +82,27 @@ async def rename(body: RenameIn) -> dict:
 @app.post("/api/delete")
 async def delete_entry(body: PathIn) -> dict:
     return notes_mod.delete_entry(body.path)
+
+
+@app.post("/api/upload")
+async def upload(
+    file: UploadFile = File(...),
+    parent: str = Form(default=""),
+    overwrite: bool = Form(default=False),
+) -> dict:
+    content = await file.read()
+    filename = file.filename or ""
+    return notes_mod.upload_file(parent, filename, content, overwrite=overwrite)
+
+
+@app.get("/api/download")
+async def download(path: str) -> FileResponse:
+    target = notes_mod.resolve_download(path)
+    return FileResponse(
+        path=str(target),
+        filename=target.name,
+        media_type="application/octet-stream",
+    )
 
 
 @app.post("/api/git/sync")

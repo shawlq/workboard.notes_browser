@@ -52,4 +52,6 @@ cd ~/workdir/workboard/notes_browser
 | POST | `/api/create-file` | 建文件 `{parent, name}` |
 | POST | `/api/rename` | 重命名 `{path, new_name}` |
 | POST | `/api/delete` | 删除 `{path}` |
+| POST | `/api/upload` | 上传文件（multipart：`file` + `parent` + 可选 `overwrite`） |
+| GET | `/api/download?path=` | 下载文件 |
 | POST | `/api/git/sync` | git 同步 |
