@@ -20,6 +20,11 @@
   box-sizing: border-box;
 }
 
+/* Author `display:` rules otherwise override the UA [hidden] stylesheet. */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   margin: 0;
@@ -234,6 +239,10 @@ body.is-resizing-sidebar * {
   color: var(--muted);
 }
 
+.tree-icon.pdf {
+  color: #a33b3b;
+}
+
 .sidebar-foot {
   border-top: 1px solid var(--border);
   padding: 8px;
@@ -405,10 +414,18 @@ body.is-resizing-sidebar * {
 }
 
 .preview,
-.editor {
+.editor,
+.pdf-viewer {
   position: absolute;
   inset: 0;
   overflow: auto;
+}
+
+.pdf-viewer {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #525659;
 }
 
 .editor {

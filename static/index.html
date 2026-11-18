@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Notes Browser</title>
-  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/style.css?v=20261118-pdf" />
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 </head>
@@ -42,7 +42,7 @@
             <path fill="currentColor" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm4 18H6V4h7v5h5v11zm-6-2 5-5-1.41-1.41L13 14.17V9h-2v5.17l-2.59-2.58L7 13l5 5z"/>
           </svg>
         </button>
-        <input type="file" id="file-upload-input" hidden />
+        <input type="file" id="file-upload-input" accept=".md,.txt,.json,.yml,.yaml,.toml,.ini,.cfg,.conf,.sh,.py,.js,.ts,.css,.html,.xml,.csv,.log,.rst,.pdf,text/*,application/pdf" hidden />
       </div>
       <div class="tree-wrap">
         <ul class="tree" id="tree" aria-label="笔记目录"></ul>
@@ -75,6 +75,7 @@
       <div class="content">
         <div class="placeholder" id="placeholder">从左侧选择一个文件开始浏览</div>
         <article class="preview markdown-body" id="preview" hidden></article>
+        <iframe class="pdf-viewer" id="pdf-viewer" title="PDF 预览" hidden></iframe>
         <textarea class="editor" id="editor" hidden spellcheck="false"></textarea>
       </div>
     </main>
@@ -85,6 +86,6 @@
     <button type="button" class="status-close" id="status-close" aria-label="关闭">×</button>
   </div>
 
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=20261118-pdf"></script>
 </body>
 </html>

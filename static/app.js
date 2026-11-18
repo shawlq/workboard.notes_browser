@@ -25,17 +25,21 @@
     tabEdit: document.getElementById("tab-edit"),
     placeholder: document.getElementById("placeholder"),
     preview: document.getElementById("preview"),
+    pdfViewer: document.getElementById("pdf-viewer"),
     editor: document.getElementById("editor"),
     statusBar: document.getElementById("status-bar"),
     statusText: document.getElementById("status-text"),
     statusClose: document.getElementById("status-close"),
   };
 
+  const TREE_COLLAPSED_KEY = "notes-browser-tree-collapsed";
+
   const state = {
     currentPath: null,
     selectedPath: null,
     selectedType: null,
     isMarkdown: false,
+    isPdf: false,
     mode: "preview",
     dirty: false,
     saveTimer: null,
@@ -44,6 +48,26 @@
     renaming: false,
     collapsed: new Set(),
   };
+
+  function loadCollapsedFromStorage() {
+    try {
+      const raw = localStorage.getItem(TREE_COLLAPSED_KEY);
+      if (!raw) return;
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return;
+      state.collapsed = new Set(arr.filter((p) => typeof p === "string"));
+    } catch {
+      /* ignore corrupt / unavailable storage */
+    }
+  }
+
+  function persistCollapsed() {
+    try {
+      localStorage.setItem(TREE_COLLAPSED_KEY, JSON.stringify(Array.from(state.collapsed)));
+    } catch {
+      /* ignore quota / private mode */
+    }
+  }
 
   if (window.marked) {
     marked.setOptions({ breaks: true, gfm: true });
@@ -134,12 +158,26 @@
     return parentOf(state.selectedPath);
   }
 
+  function clearPdfViewer() {
+    if (!els.pdfViewer) return;
+    els.pdfViewer.removeAttribute("src");
+  }
+
+  function showPdfViewer(path) {
+    if (!els.pdfViewer) return;
+    // Unhide first so the browser actually fetches/renders the PDF.
+    els.pdfViewer.hidden = false;
+    els.pdfViewer.setAttribute("src", `/api/preview?path=${encodeURIComponent(path)}`);
+  }
+
   function clearEditor() {
     state.currentPath = null;
     state.isMarkdown = false;
+    state.isPdf = false;
     state.dirty = false;
     state.lastContent = "";
     els.editor.value = "";
+    clearPdfViewer();
     els.currentPath.textContent = "未选择文件";
     setSaveStatus("");
     updateView();
@@ -147,13 +185,34 @@
 
   function updateView() {
     const hasFile = Boolean(state.currentPath);
+    const showMarkdownTabs = hasFile && state.isMarkdown && !state.isPdf;
     els.placeholder.hidden = hasFile;
-    els.modeTabs.hidden = !hasFile || !state.isMarkdown;
+    els.modeTabs.hidden = !showMarkdownTabs;
+    if (!showMarkdownTabs) {
+      els.modeTabs.setAttribute("hidden", "");
+    } else {
+      els.modeTabs.removeAttribute("hidden");
+    }
+    els.tabEdit.disabled = state.isPdf || !showMarkdownTabs;
+    els.tabPreview.disabled = state.isPdf || !showMarkdownTabs;
 
     if (!hasFile) {
       els.preview.hidden = true;
       els.editor.hidden = true;
+      if (els.pdfViewer) els.pdfViewer.hidden = true;
       return;
+    }
+
+    if (state.isPdf) {
+      els.preview.hidden = true;
+      els.editor.hidden = true;
+      if (els.pdfViewer) els.pdfViewer.hidden = false;
+      return;
+    }
+
+    if (els.pdfViewer) {
+      els.pdfViewer.hidden = true;
+      clearPdfViewer();
     }
 
     if (state.isMarkdown && state.mode === "preview") {
@@ -170,6 +229,7 @@
   }
 
   function setMode(mode) {
+    if (state.isPdf) return;
     state.mode = mode;
     updateView();
   }
@@ -190,22 +250,29 @@
           <ul class="tree-children"${collapsed ? " hidden" : ""}>${kids}</ul>
         </li>`;
     }
+    const isPdf = Boolean(node.is_pdf) || /\.pdf$/i.test(node.name || "");
+    const iconClass = isPdf ? "pdf" : "file";
+    const iconLabel = isPdf ? "P" : "F";
     return `
       <li class="tree-item" data-path="${escapeAttr(node.path)}" data-type="file">
         <button type="button" class="tree-row file-row${selected}${active}" data-path="${escapeAttr(node.path)}">
           <span class="tree-toggle"></span>
-          <span class="tree-icon file">F</span>
+          <span class="tree-icon ${iconClass}">${iconLabel}</span>
           <span class="tree-name">${escapeHtml(node.name)}</span>
         </button>
       </li>`;
   }
 
   function rememberCollapsed() {
+    const dirs = els.tree.querySelectorAll(".tree-item[data-type='dir']");
+    // Empty tree (first paint): keep in-memory state loaded from storage.
+    if (!dirs.length) return;
     state.collapsed.clear();
-    els.tree.querySelectorAll(".tree-item[data-type='dir']").forEach((li) => {
+    dirs.forEach((li) => {
       const kids = li.querySelector(":scope > .tree-children");
       if (kids && kids.hidden) state.collapsed.add(li.dataset.path);
     });
+    persistCollapsed();
   }
 
   function renderTree(tree) {
@@ -230,8 +297,12 @@
     }
   }
 
-  async function loadTree() {
+  async function loadTree(afterRemember) {
     rememberCollapsed();
+    if (typeof afterRemember === "function") {
+      afterRemember(state.collapsed);
+      persistCollapsed();
+    }
     const data = await api("/api/tree");
     renderTree(data.tree || []);
     markSelection();
@@ -245,19 +316,31 @@
     state.currentPath = data.path;
     state.selectedPath = data.path;
     state.selectedType = "file";
-    state.isMarkdown = Boolean(data.is_markdown);
+    state.isPdf = Boolean(data.is_pdf);
+    state.isMarkdown = Boolean(data.is_markdown) && !state.isPdf;
     state.mode = state.isMarkdown ? "preview" : "edit";
-    state.lastContent = data.content ?? "";
     state.dirty = false;
-    els.editor.value = state.lastContent;
     els.currentPath.textContent = data.path;
     setSaveStatus("");
-    markSelection();
-    updateView();
+
+    if (state.isPdf) {
+      state.mode = "preview";
+      state.lastContent = "";
+      els.editor.value = "";
+      markSelection();
+      updateView();
+      showPdfViewer(data.path);
+    } else {
+      clearPdfViewer();
+      state.lastContent = data.content ?? "";
+      els.editor.value = state.lastContent;
+      markSelection();
+      updateView();
+    }
   }
 
   async function saveCurrent() {
-    if (!state.currentPath) return;
+    if (!state.currentPath || state.isPdf) return;
     const content = els.editor.value;
     if (content === state.lastContent && !state.dirty) {
       setSaveStatus("已保存", "saved");
@@ -280,6 +363,7 @@
   }
 
   function scheduleSave() {
+    if (state.isPdf) return;
     state.dirty = true;
     setSaveStatus("未保存", "");
     if (state.saveTimer) clearTimeout(state.saveTimer);
@@ -338,8 +422,10 @@
       });
       state.selectedPath = data.path;
       state.selectedType = "dir";
-      state.collapsed.delete(targetParent());
-      await loadTree();
+      const parent = targetParent();
+      await loadTree((collapsed) => {
+        collapsed.delete(parent);
+      });
     } catch (err) {
       showStatus(`新建目录失败: ${err.message}`, "error", 8000);
     }
@@ -437,8 +523,9 @@
           throw err;
         }
       }
-      state.collapsed.delete(parent);
-      await loadTree();
+      await loadTree((collapsed) => {
+        collapsed.delete(parent);
+      });
       await openFile(data.path);
       showStatus(`已上传: ${data.path}`, "ok", 4000);
     } catch (err) {
@@ -522,15 +609,21 @@
         if (state.currentPath === path) {
           state.currentPath = data.path;
           els.currentPath.textContent = data.path;
+          if (state.isPdf) {
+            state.isPdf = /\.pdf$/i.test(data.path);
+            if (state.isPdf) showPdfViewer(data.path);
+            else clearEditor();
+          }
         } else if (state.currentPath && state.currentPath.startsWith(path + "/")) {
           state.currentPath = data.path + state.currentPath.slice(path.length);
           els.currentPath.textContent = state.currentPath;
         }
-        if (state.collapsed.has(path)) {
-          state.collapsed.delete(path);
-          state.collapsed.add(data.path);
-        }
-        await loadTree();
+        await loadTree((collapsed) => {
+          if (collapsed.has(path)) {
+            collapsed.delete(path);
+            collapsed.add(data.path);
+          }
+        });
       } catch (err) {
         showStatus(`重命名失败: ${err.message}`, "error", 8000);
         await loadTree();
@@ -571,6 +664,7 @@
       kids.hidden = willCollapse;
       if (willCollapse) state.collapsed.add(path);
       else state.collapsed.delete(path);
+      persistCollapsed();
       if (toggle) toggle.textContent = kids.hidden ? "▸" : "▾";
       return;
     }
@@ -733,6 +827,7 @@
     hideStatus();
     setExtMenuOpen(false);
     initSidebarResize();
+    loadCollapsedFromStorage();
     try {
       const cfg = await api("/api/config");
       els.notesDirLabel.textContent = cfg.notes_dir || "";

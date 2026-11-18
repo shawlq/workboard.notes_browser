@@ -95,13 +95,28 @@ async def upload(
     return notes_mod.upload_file(parent, filename, content, overwrite=overwrite)
 
 
+@app.get("/api/preview")
+async def preview(path: str) -> FileResponse:
+    target = notes_mod.resolve_preview(path)
+    return FileResponse(
+        path=str(target),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="{target.name}"',
+        },
+    )
+
+
 @app.get("/api/download")
 async def download(path: str) -> FileResponse:
     target = notes_mod.resolve_download(path)
+    media_type = (
+        "application/pdf" if notes_mod.is_pdf(target) else "application/octet-stream"
+    )
     return FileResponse(
         path=str(target),
         filename=target.name,
-        media_type="application/octet-stream",
+        media_type=media_type,
     )
 
 

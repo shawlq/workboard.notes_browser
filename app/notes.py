@@ -10,6 +10,8 @@ from fastapi import HTTPException
 from app.config import settings
 
 SKIP_NAMES = {".git", ".venv", "__pycache__", ".DS_Store"}
+PDF_EXTENSION = ".pdf"
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50MB
 TEXT_EXTENSIONS = {
     ".md",
     ".txt",
@@ -84,6 +86,10 @@ def is_markdown(path: Path) -> bool:
     return path.suffix.lower() == ".md"
 
 
+def is_pdf(path: Path) -> bool:
+    return path.suffix.lower() == PDF_EXTENSION
+
+
 def is_probably_text(path: Path) -> bool:
     name = path.name
     if name in {".gitignore", ".env", ".bashrc", ".profile"}:
@@ -93,6 +99,10 @@ def is_probably_text(path: Path) -> bool:
     if path.suffix == "":
         return True
     return False
+
+
+def is_allowed_file(path: Path) -> bool:
+    return is_probably_text(path) or is_pdf(path)
 
 
 def build_tree(base: Path | None = None, rel: str = "") -> list[dict]:
@@ -117,13 +127,14 @@ def build_tree(base: Path | None = None, rel: str = "") -> list[dict]:
                 }
             )
         elif child.is_file():
-            entries.append(
-                {
-                    "name": child.name,
-                    "path": child_rel,
-                    "type": "file",
-                }
-            )
+            entry: dict = {
+                "name": child.name,
+                "path": child_rel,
+                "type": "file",
+            }
+            if is_pdf(child):
+                entry["is_pdf"] = True
+            entries.append(entry)
     return entries
 
 
@@ -131,6 +142,12 @@ def read_file(rel: str) -> dict:
     path = resolve_under_notes(rel)
     if not path.is_file():
         raise HTTPException(status_code=404, detail="file not found")
+    if is_pdf(path):
+        return {
+            "path": rel,
+            "is_markdown": False,
+            "is_pdf": True,
+        }
     if not is_probably_text(path):
         raise HTTPException(status_code=415, detail="binary or unsupported file type")
     try:
@@ -141,6 +158,7 @@ def read_file(rel: str) -> dict:
         "path": rel,
         "content": content,
         "is_markdown": is_markdown(path),
+        "is_pdf": False,
     }
 
 
@@ -230,6 +248,25 @@ def rename_entry(rel: str, new_name: str) -> dict:
     return {"ok": True, "path": new_rel, "from": rel, "type": kind}
 
 
+def _atomic_write_bytes(path: Path, content: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
+    )
+    try:
+        with os.fdopen(fd, "wb") as tmp:
+            tmp.write(content)
+            tmp.flush()
+            os.fsync(tmp.fileno())
+        os.replace(tmp_name, path)
+    except Exception:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
+
+
 def upload_file(parent: str, filename: str, content: bytes, overwrite: bool = False) -> dict:
     name = validate_entry_name(filename)
     rel = join_rel(parent, name)
@@ -239,8 +276,16 @@ def upload_file(parent: str, filename: str, content: bytes, overwrite: bool = Fa
             raise HTTPException(status_code=400, detail="path is not a file")
         if not overwrite:
             raise HTTPException(status_code=409, detail="already exists")
-    if not is_probably_text(path):
+    if not is_allowed_file(path):
         raise HTTPException(status_code=415, detail="unsupported file type")
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"file too large (max {MAX_UPLOAD_BYTES // (1024 * 1024)}MB)",
+        )
+    if is_pdf(path):
+        _atomic_write_bytes(path, content)
+        return {"ok": True, "path": rel, "type": "file", "is_pdf": True}
     try:
         text = content.decode("utf-8")
     except UnicodeDecodeError as exc:
@@ -261,11 +306,20 @@ def upload_file(parent: str, filename: str, content: bytes, overwrite: bool = Fa
         except OSError:
             pass
         raise
-    return {"ok": True, "path": rel, "type": "file"}
+    return {"ok": True, "path": rel, "type": "file", "is_pdf": False}
 
 
 def resolve_download(rel: str) -> Path:
     path = resolve_under_notes(rel)
     if not path.is_file():
         raise HTTPException(status_code=404, detail="file not found")
+    return path
+
+
+def resolve_preview(rel: str) -> Path:
+    path = resolve_under_notes(rel)
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="file not found")
+    if not is_pdf(path):
+        raise HTTPException(status_code=415, detail="preview only supports PDF")
     return path
