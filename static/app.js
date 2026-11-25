@@ -47,6 +47,10 @@
     lastContent: "",
     renaming: false,
     collapsed: new Set(),
+    dragPath: null,
+    dragType: null,
+    treeDragActive: false,
+    suppressTreeClick: false,
   };
 
   function loadCollapsedFromStorage() {
@@ -242,7 +246,7 @@
       const kids = (node.children || []).map((c) => treeItemHtml(c)).join("");
       return `
         <li class="tree-item" data-path="${escapeAttr(node.path)}" data-type="dir">
-          <button type="button" class="tree-row dir-row${selected}${active}" data-path="${escapeAttr(node.path)}">
+          <button type="button" class="tree-row dir-row${selected}${active}" data-path="${escapeAttr(node.path)}" draggable="true">
             <span class="tree-toggle">${collapsed ? "▸" : "▾"}</span>
             <span class="tree-icon dir">D</span>
             <span class="tree-name">${escapeHtml(node.name)}</span>
@@ -255,7 +259,7 @@
     const iconLabel = isPdf ? "P" : "F";
     return `
       <li class="tree-item" data-path="${escapeAttr(node.path)}" data-type="file">
-        <button type="button" class="tree-row file-row${selected}${active}" data-path="${escapeAttr(node.path)}">
+        <button type="button" class="tree-row file-row${selected}${active}" data-path="${escapeAttr(node.path)}" draggable="true">
           <span class="tree-toggle"></span>
           <span class="tree-icon ${iconClass}">${iconLabel}</span>
           <span class="tree-name">${escapeHtml(node.name)}</span>
@@ -568,6 +572,92 @@
     }
   }
 
+  function clearDropHighlights() {
+    els.tree.querySelectorAll(".tree-row.drag-over").forEach((el) => {
+      el.classList.remove("drag-over");
+    });
+    const wrap = els.tree.closest(".tree-wrap");
+    if (wrap) wrap.classList.remove("drag-over-root");
+  }
+
+  function clearDragState() {
+    clearDropHighlights();
+    els.tree.querySelectorAll(".tree-item.is-dragging").forEach((el) => {
+      el.classList.remove("is-dragging");
+    });
+    state.dragPath = null;
+    state.dragType = null;
+  }
+
+  function isInvalidDropTarget(srcPath, destParent) {
+    if (!srcPath) return true;
+    if (destParent === srcPath) return true;
+    if (destParent && destParent.startsWith(srcPath + "/")) return true;
+    if (parentOf(srcPath) === (destParent || "")) return true;
+    return false;
+  }
+
+  function resolveDropParent(ev) {
+    const wrap = els.tree.closest(".tree-wrap");
+    if (!wrap || !wrap.contains(ev.target)) return null;
+
+    const row = ev.target.closest(".tree-row");
+    if (row && row.dataset.path) {
+      const li = row.closest(".tree-item");
+      if (!li) return null;
+      if (li.dataset.type === "dir") return li.dataset.path;
+      return parentOf(li.dataset.path);
+    }
+
+    const childUl = ev.target.closest(".tree-children");
+    if (childUl) {
+      const parentLi = childUl.parentElement?.closest(".tree-item[data-type='dir']");
+      if (parentLi?.dataset.path) return parentLi.dataset.path;
+    }
+
+    return "";
+  }
+
+  async function moveEntry(srcPath, destParent) {
+    if (isInvalidDropTarget(srcPath, destParent)) return;
+    try {
+      await flushSave();
+      const data = await api("/api/move", {
+        method: "POST",
+        body: JSON.stringify({ path: srcPath, dest_parent: destParent || "" }),
+      });
+      if (data.unchanged) return;
+
+      if (state.selectedPath === srcPath) {
+        state.selectedPath = data.path;
+        state.selectedType = data.type || state.selectedType;
+      } else if (state.selectedPath && state.selectedPath.startsWith(srcPath + "/")) {
+        state.selectedPath = data.path + state.selectedPath.slice(srcPath.length);
+      }
+
+      if (state.currentPath === srcPath) {
+        state.currentPath = data.path;
+        els.currentPath.textContent = data.path;
+        if (state.isPdf) showPdfViewer(data.path);
+      } else if (state.currentPath && state.currentPath.startsWith(srcPath + "/")) {
+        state.currentPath = data.path + state.currentPath.slice(srcPath.length);
+        els.currentPath.textContent = state.currentPath;
+        if (state.isPdf) showPdfViewer(state.currentPath);
+      }
+
+      await loadTree((collapsed) => {
+        if (collapsed.has(srcPath)) {
+          collapsed.delete(srcPath);
+          collapsed.add(data.path);
+        }
+        if (destParent) collapsed.delete(destParent);
+      });
+      showStatus(`已移动到: ${data.path}`, "ok", 3000);
+    } catch (err) {
+      showStatus(`移动失败: ${err.message}`, "error", 8000);
+    }
+  }
+
   function beginRename(li) {
     if (state.renaming || !li) return;
     const path = li.dataset.path;
@@ -643,6 +733,12 @@
   }
 
   els.tree.addEventListener("click", (ev) => {
+    if (state.suppressTreeClick) {
+      state.suppressTreeClick = false;
+      ev.preventDefault();
+      ev.stopPropagation();
+      return;
+    }
     if (state.renaming) return;
     if (ev.target.closest(".tree-rename-input")) return;
     const btn = ev.target.closest(".tree-row");
@@ -681,6 +777,90 @@
     const li = nameEl.closest(".tree-item");
     beginRename(li);
   });
+
+  els.tree.addEventListener("dragstart", (ev) => {
+    if (state.renaming) {
+      ev.preventDefault();
+      return;
+    }
+    const row = ev.target.closest(".tree-row");
+    const li = row?.closest(".tree-item");
+    if (!li || !li.dataset.path) {
+      ev.preventDefault();
+      return;
+    }
+    ev.stopPropagation();
+    state.dragPath = li.dataset.path;
+    state.dragType = li.dataset.type;
+    state.treeDragActive = true;
+    li.classList.add("is-dragging");
+    ev.dataTransfer.effectAllowed = "move";
+    try {
+      ev.dataTransfer.setData("text/plain", li.dataset.path);
+    } catch {
+      /* some browsers restrict setData outside dragstart */
+    }
+  });
+
+  els.tree.addEventListener("dragend", () => {
+    const wasDragging = state.treeDragActive;
+    state.treeDragActive = false;
+    clearDragState();
+    // Consume the synthetic click that some browsers fire after drag.
+    if (wasDragging) {
+      state.suppressTreeClick = true;
+      setTimeout(() => {
+        state.suppressTreeClick = false;
+      }, 50);
+    }
+  });
+
+  function onTreeDragOver(ev) {
+    if (!state.dragPath) return;
+    const destParent = resolveDropParent(ev);
+    if (destParent === null) return;
+    if (isInvalidDropTarget(state.dragPath, destParent)) {
+      clearDropHighlights();
+      return;
+    }
+    ev.preventDefault();
+    ev.dataTransfer.dropEffect = "move";
+    clearDropHighlights();
+    const wrap = els.tree.closest(".tree-wrap");
+    if (destParent === "") {
+      if (wrap) wrap.classList.add("drag-over-root");
+      return;
+    }
+    const row = els.tree.querySelector(
+      `.tree-item[data-type="dir"][data-path="${CSS.escape(destParent)}"] > .tree-row`
+    );
+    if (row) row.classList.add("drag-over");
+  }
+
+  function onTreeDrop(ev) {
+    if (!state.dragPath) return;
+    const srcPath = state.dragPath;
+    const destParent = resolveDropParent(ev);
+    if (destParent === null || isInvalidDropTarget(srcPath, destParent)) {
+      clearDragState();
+      return;
+    }
+    ev.preventDefault();
+    clearDragState();
+    moveEntry(srcPath, destParent);
+  }
+
+  els.tree.addEventListener("dragover", onTreeDragOver);
+  els.tree.addEventListener("drop", onTreeDrop);
+
+  const treeWrap = els.tree.closest(".tree-wrap");
+  if (treeWrap) {
+    treeWrap.addEventListener("dragover", onTreeDragOver);
+    treeWrap.addEventListener("drop", onTreeDrop);
+    treeWrap.addEventListener("dragleave", (ev) => {
+      if (!treeWrap.contains(ev.relatedTarget)) clearDropHighlights();
+    });
+  }
 
   els.editor.addEventListener("input", () => {
     scheduleSave();

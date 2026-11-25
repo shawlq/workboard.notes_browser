@@ -248,6 +248,51 @@ def rename_entry(rel: str, new_name: str) -> dict:
     return {"ok": True, "path": new_rel, "from": rel, "type": kind}
 
 
+def resolve_parent_dir(parent: str) -> Path:
+    parent = (parent or "").replace("\\", "/").strip().strip("/")
+    if not parent:
+        return settings.notes_dir.resolve()
+    dest = resolve_under_notes(parent)
+    if not dest.is_dir():
+        raise HTTPException(status_code=400, detail="destination is not a directory")
+    return dest
+
+
+def move_entry(rel: str, dest_parent: str) -> dict:
+    path = resolve_under_notes(rel)
+    root = settings.notes_dir.resolve()
+    if path == root:
+        raise HTTPException(status_code=400, detail="cannot move notes_dir root")
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="not found")
+
+    dest_parent_norm = (dest_parent or "").replace("\\", "/").strip().strip("/")
+    if dest_parent_norm and ".." in Path(dest_parent_norm).parts:
+        raise HTTPException(status_code=400, detail="invalid path")
+    src_parent = parent_rel(rel)
+    if src_parent == dest_parent_norm:
+        kind = "dir" if path.is_dir() else "file"
+        return {"ok": True, "path": rel, "from": rel, "type": kind, "unchanged": True}
+
+    dest_dir = resolve_parent_dir(dest_parent_norm)
+    if path.is_dir():
+        try:
+            dest_dir.relative_to(path.resolve())
+            raise HTTPException(
+                status_code=400, detail="cannot move into itself or a descendant"
+            )
+        except ValueError:
+            pass
+
+    new_rel = join_rel(dest_parent_norm, path.name)
+    dest = resolve_under_notes(new_rel)
+    if dest.exists():
+        raise HTTPException(status_code=409, detail="target already exists")
+    path.rename(dest)
+    kind = "dir" if dest.is_dir() else "file"
+    return {"ok": True, "path": new_rel, "from": rel, "type": kind}
+
+
 def _atomic_write_bytes(path: Path, content: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(

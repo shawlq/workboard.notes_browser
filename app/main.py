@@ -30,6 +30,11 @@ class RenameIn(BaseModel):
     new_name: str = Field(..., min_length=1)
 
 
+class MoveIn(BaseModel):
+    path: str = Field(..., min_length=1)
+    dest_parent: str = Field(default="")
+
+
 class PathIn(BaseModel):
     path: str = Field(..., min_length=1)
 
@@ -77,6 +82,11 @@ async def create_file(body: CreateIn) -> dict:
 @app.post("/api/rename")
 async def rename(body: RenameIn) -> dict:
     return notes_mod.rename_entry(body.path, body.new_name)
+
+
+@app.post("/api/move")
+async def move(body: MoveIn) -> dict:
+    return notes_mod.move_entry(body.path, body.dest_parent)
 
 
 @app.post("/api/delete")

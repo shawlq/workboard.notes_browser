@@ -194,6 +194,28 @@ body.is-resizing-sidebar * {
   font-weight: 600;
 }
 
+.tree-row[draggable="true"] {
+  cursor: grab;
+}
+
+.tree-item.is-dragging > .tree-row {
+  opacity: 0.45;
+  cursor: grabbing;
+}
+
+.tree-row.drag-over {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.tree-wrap.drag-over-root {
+  outline: 2px dashed var(--accent);
+  outline-offset: -4px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
 .tree-name {
   flex: 1;
   min-width: 0;
