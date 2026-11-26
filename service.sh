@@ -6,7 +6,7 @@ cd "$(dirname "$0")"
 NAME="Notes Browser"
 PID_FILE=".service.pid"
 LOG_FILE="service.log"
-DEFAULT_PORT=8766
+DEFAULT_PORT=12001
 
 read_port() {
   python3 -c "import json; print(json.load(open('config.json')).get('port', ${DEFAULT_PORT}))" 2>/dev/null || echo "${DEFAULT_PORT}"

@@ -1,6 +1,6 @@
 # Notes Browser
 
-本地 Markdown / 文本 / PDF 笔记 Web 浏览服务。笔记目录默认 `~/workdir/workboard/notes`，服务默认端口 `8766`。
+本地 Markdown / 文本 / PDF 笔记 Web 浏览服务。笔记目录默认 `~/workdir/workboard/notes`，服务默认端口 `12001`。
 
 ## 快速使用
 
@@ -12,7 +12,7 @@ cd ~/workdir/workboard/notes_browser
 ./service.sh status
 ```
 
-- 访问：`http://127.0.0.1:8766`（局域网 / Tailscale 也可，见启动日志）
+- 访问：`http://127.0.0.1:12001`（局域网 / Tailscale 也可，见启动日志）
 - 日志：`service.log`；PID：`.service.pid`
 - 前台调试：`./run.sh`（首次会建 `.venv` 并装依赖）
 - 改 `config.json` 后需重启
@@ -24,7 +24,7 @@ cd ~/workdir/workboard/notes_browser
 ```json
 {
   "host": "0.0.0.0",
-  "port": 8766,
+  "port": 12001,
   "notes_dir": "~/workdir/workboard/notes"
 }
 ```
