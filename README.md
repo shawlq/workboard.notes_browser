@@ -36,11 +36,14 @@ cd ~/workdir/workboard/notes_browser
 
 - 左侧目录树（跳过 `.git` 等隐藏项）；右侧预览 / 编辑
 - `*.md` 可 Markdown 预览或源码编辑；其它文本直接编辑
+- 在线编辑使用 **Ace Editor**（本地 `static/vendor/ace`，`ace-builds@1.43.2`）+ 官方 **Sublime** 键位：`Ctrl/Cmd+D` 选下一处、`Ctrl/Cmd+Shift+D` 复制行、`Ctrl/Cmd+Shift+K` 删行等；`.md` 为 markdown mode，其它文本为 text mode
+- `Ctrl/Cmd+Shift+P`：显示当前快捷键列表（Ace 无完整 ST 命令面板）；`Ctrl/Cmd+S` 立即保存；`F2` 仍为重命名
+- 自定义键位：在 `static/app.js` 的 `applySublimeKeymap()` 里用 `aceEditor.commands.addCommand({ name, bindKey, exec })` 覆盖或新增
 - `*.pdf` 仅在线只读预览（iframe），不支持编辑；可上传 / 下载 / 重命名 / 删除
 - 上传支持常见文本与 `.pdf`；单文件上限 **50MB**
 - 停止输入约 500ms 后自动保存到 `notes_dir`（PDF 不参与保存）
 - UI「扩展菜单 >>」→「git同步」：在 `notes_dir` 执行 `git pull` → `git add .` → `git commit -m"update"` → `git push`
-- 技术栈：FastAPI + uvicorn；入口 `app.main:app`；静态页 `static/`
+- 技术栈：FastAPI + uvicorn；入口 `app.main:app`；静态页 `static/`；前端另用 marked / DOMPurify / Ace
 
 ## API
 

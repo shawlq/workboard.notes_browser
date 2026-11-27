@@ -11,9 +11,16 @@
   <link rel="shortcut icon" href="/favicon.ico" />
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png" sizes="180x180" />
   <link rel="manifest" href="/static/site.webmanifest" />
-  <link rel="stylesheet" href="/static/style.css?v=20261125-dnd" />
+  <link rel="stylesheet" href="/static/style.css?v=20261127-ace5" />
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+  <!-- Ace local vendor: Sublime keymap must load with ace.js (CDN async module was failing → Ctrl+D stayed as delete-line). -->
+  <script src="/static/vendor/ace/ace.js"></script>
+  <script src="/static/vendor/ace/keybinding-sublime.js"></script>
+  <script src="/static/vendor/ace/theme-textmate.js"></script>
+  <script src="/static/vendor/ace/mode-markdown.js"></script>
+  <script src="/static/vendor/ace/ext-searchbox.js"></script>
+  <script src="/static/vendor/ace/ext-keybinding_menu.js"></script>
 </head>
 <body>
   <div class="app">
@@ -75,7 +82,32 @@
         </div>
         <div class="mode-tabs" id="mode-tabs" hidden>
           <button type="button" class="tab active" data-mode="preview" id="tab-preview">预览</button>
-          <button type="button" class="tab" data-mode="edit" id="tab-edit">编辑</button>
+          <span class="tab-edit-wrap" id="editor-help">
+            <button type="button" class="tab" data-mode="edit" id="tab-edit">编辑</button>
+            <button
+              type="button"
+              class="editor-help-btn"
+              id="btn-editor-keys"
+              title="Sublime 快捷键"
+              aria-label="显示 Sublime 快捷键"
+              aria-expanded="false"
+              aria-controls="editor-keys-pop"
+            >ⓘ</button>
+            <div
+              class="editor-keys-pop"
+              id="editor-keys-pop"
+              hidden
+              role="dialog"
+              aria-labelledby="editor-keys-title"
+            >
+              <div class="editor-keys-pop-head">
+                <strong id="editor-keys-title">Sublime 快捷键</strong>
+                <button type="button" class="editor-keys-close" id="btn-editor-keys-close" aria-label="关闭">×</button>
+              </div>
+              <p class="editor-keys-hint">编辑模式当前启用的 Ace Sublime 键位（含本应用覆盖）</p>
+              <div class="editor-keys-list" id="editor-keys-list"></div>
+            </div>
+          </span>
         </div>
       </header>
 
@@ -83,7 +115,7 @@
         <div class="placeholder" id="placeholder">从左侧选择一个文件开始浏览</div>
         <article class="preview markdown-body" id="preview" hidden></article>
         <iframe class="pdf-viewer" id="pdf-viewer" title="PDF 预览" hidden></iframe>
-        <textarea class="editor" id="editor" hidden spellcheck="false"></textarea>
+        <div class="editor" id="editor" hidden></div>
       </div>
     </main>
   </div>
@@ -93,6 +125,6 @@
     <button type="button" class="status-close" id="status-close" aria-label="关闭">×</button>
   </div>
 
-  <script src="/static/app.js?v=20261125-dnd"></script>
+  <script src="/static/app.js?v=20261127-ace4"></script>
 </body>
 </html>
