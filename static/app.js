@@ -27,12 +27,69 @@
     preview: document.getElementById("preview"),
     pdfViewer: document.getElementById("pdf-viewer"),
     editor: document.getElementById("editor"),
+    editorHelp: document.getElementById("editor-help"),
+    btnEditorKeys: document.getElementById("btn-editor-keys"),
+    editorKeysPop: document.getElementById("editor-keys-pop"),
+    editorKeysList: document.getElementById("editor-keys-list"),
+    btnEditorKeysClose: document.getElementById("btn-editor-keys-close"),
     statusBar: document.getElementById("status-bar"),
     statusText: document.getElementById("status-text"),
     statusClose: document.getElementById("status-close"),
   };
 
   const TREE_COLLAPSED_KEY = "notes-browser-tree-collapsed";
+  const ACE_BASE = "/static/vendor/ace";
+  const IS_MAC = /Mac|iPhone|iPad|iPod/i.test(navigator.platform || "")
+    || /Mac OS X/i.test(navigator.userAgent || "");
+
+  // Ace Sublime keymap (+ app overrides). Labels in Chinese for the help bubble.
+  const SUBLIME_SHORTCUTS = [
+    { desc: "立即保存", win: "Ctrl+S", mac: "⌘S", app: true },
+    { desc: "重命名当前选中项", win: "F2", mac: "F2", app: true },
+    { desc: "显示快捷键列表", win: "Ctrl+Shift+P", mac: "⌘⇧P", app: true },
+    { desc: "选中下一处相同内容", win: "Ctrl+D", mac: "⌘D" },
+    { desc: "跳过并选下一处", win: "Ctrl+K Ctrl+D", mac: "⌘K ⌘D" },
+    { desc: "选中全部相同内容", win: "Alt+F3", mac: "Ctrl+⌘G" },
+    { desc: "查找当前词（下一个）", win: "Ctrl+F3", mac: "⌥⌘G" },
+    { desc: "查找当前词（上一个）", win: "Ctrl+Shift+F3", mac: "⇧⌥⌘G" },
+    { desc: "查找下一个 / 上一个", win: "F3 / Shift+F3", mac: "⌘G / ⇧⌘G" },
+    { desc: "复制行或选区", win: "Ctrl+Shift+D", mac: "⌘⇧D" },
+    { desc: "删除整行", win: "Ctrl+Shift+K", mac: "Ctrl+⇧K" },
+    { desc: "选中整行", win: "Ctrl+L", mac: "⌘L" },
+    { desc: "按行拆分多光标", win: "Ctrl+Shift+L", mac: "⌘⇧L" },
+    { desc: "在上方 / 下方加光标", win: "Ctrl+Alt+↑ / ↓", mac: "Ctrl+⇧↑ / ↓" },
+    { desc: "向上 / 向下移动行", win: "Ctrl+Shift+↑ / ↓", mac: "Ctrl+⌘↑ / ↓" },
+    { desc: "在上方 / 下方插入行", win: "Ctrl+Shift+Enter / Ctrl+Enter", mac: "⌘⇧Enter / ⌘Enter" },
+    { desc: "合并行", win: "Ctrl+J", mac: "⌘J" },
+    { desc: "删除到行首（硬）", win: "Ctrl+Shift+Backspace", mac: "⌘K ⌘Backspace" },
+    { desc: "删除到行尾（硬）", win: "Ctrl+Shift+Delete", mac: "⌘K ⌘K" },
+    { desc: "按词向左 / 右移动", win: "Ctrl+← / →", mac: "⌥← / →" },
+    { desc: "按词向左 / 右选中", win: "Ctrl+Shift+← / →", mac: "⌥⇧← / →" },
+    { desc: "按子词向左 / 右移动", win: "Alt+← / →", mac: "Ctrl+← / →" },
+    { desc: "按子词向左 / 右选中", win: "Alt+Shift+← / →", mac: "Ctrl+⇧← / →" },
+    { desc: "扩展选区到括号", win: "Ctrl+Shift+M", mac: "Ctrl+⇧M" },
+    { desc: "扩展选区到缩进", win: "Ctrl+Shift+J", mac: "⌘⇧J" },
+    { desc: "扩展选区到标签", win: "Ctrl+Shift+A", mac: "⌘⇧A" },
+    { desc: "扩展选区到作用域", win: "Ctrl+Shift+Space", mac: "⌘⇧Space" },
+    { desc: "跳到匹配括号", win: "Ctrl+M", mac: "Ctrl+M" },
+    { desc: "折叠 / 展开", win: "Ctrl+Shift+[ / ]", mac: "⌘⌥[ / ]" },
+    { desc: "全部展开", win: "Ctrl+K Ctrl+0", mac: "⌘K ⌘0" },
+    { desc: "折叠其它", win: "Ctrl+K Ctrl+1", mac: "⌘K ⌘1" },
+    { desc: "切换行注释", win: "Ctrl+/", mac: "⌘/" },
+    { desc: "切换块注释", win: "Ctrl+Shift+/", mac: "⌘⌥/" },
+    { desc: "转小写 / 大写", win: "Ctrl+K Ctrl+L / U", mac: "⌘K ⌘L / U" },
+    { desc: "排序选中行", win: "F9", mac: "F5" },
+    { desc: "区分大小写排序", win: "Ctrl+F9", mac: "Ctrl+F5" },
+    { desc: "全选", win: "Ctrl+A", mac: "⌘A" },
+    { desc: "居中显示选区", win: "Ctrl+K Ctrl+C", mac: "⌘K ⌘C" },
+    { desc: "向上 / 向下滚动", win: "Ctrl+↑ / ↓", mac: "Ctrl+⌥↑ / ↓" },
+    { desc: "数字 +1 / -1", win: "Alt+↑ / ↓", mac: "⌥↑ / ↓" },
+    { desc: "交换字符", win: "Ctrl+T", mac: "Ctrl+T" },
+    { desc: "录制 / 回放宏", win: "Ctrl+Q / Ctrl+Shift+Q", mac: "Ctrl+Q / Ctrl+⇧Q" },
+  ];
+
+  let aceEditor = null;
+  let applyingEditorValue = false;
 
   const state = {
     currentPath: null,
@@ -174,13 +231,149 @@
     els.pdfViewer.setAttribute("src", `/api/preview?path=${encodeURIComponent(path)}`);
   }
 
+  function getEditorValue() {
+    return aceEditor ? aceEditor.getValue() : "";
+  }
+
+  function setEditorValue(text) {
+    if (!aceEditor) return;
+    applyingEditorValue = true;
+    try {
+      aceEditor.setValue(text ?? "", -1);
+      aceEditor.session.setUndoManager(new ace.UndoManager());
+      aceEditor.clearSelection();
+    } finally {
+      applyingEditorValue = false;
+    }
+  }
+
+  function setEditorModeForFile(isMarkdown) {
+    if (!aceEditor) return;
+    aceEditor.session.setMode(
+      isMarkdown ? "ace/mode/markdown" : "ace/mode/text"
+    );
+  }
+
+  function resizeEditor() {
+    if (!aceEditor || els.editor.hidden) return;
+    requestAnimationFrame(() => {
+      aceEditor.resize();
+    });
+  }
+
+  function formatShortcutCombo(item) {
+    return IS_MAC ? item.mac : item.win;
+  }
+
+  function renderShortcutHelpList() {
+    if (!els.editorKeysList || els.editorKeysList.childElementCount) return;
+    const frag = document.createDocumentFragment();
+    for (const item of SUBLIME_SHORTCUTS) {
+      const row = document.createElement("div");
+      row.className = "editor-keys-row";
+      const desc = document.createElement("span");
+      desc.className = "editor-keys-desc";
+      desc.textContent = item.app ? `${item.desc}（应用）` : item.desc;
+      const combo = document.createElement("span");
+      combo.className = "editor-keys-combo";
+      combo.textContent = formatShortcutCombo(item);
+      row.append(desc, combo);
+      frag.appendChild(row);
+    }
+    els.editorKeysList.appendChild(frag);
+  }
+
+  function setEditorKeysPopOpen(open) {
+    if (!els.editorKeysPop || !els.btnEditorKeys) return;
+    if (open) {
+      renderShortcutHelpList();
+      els.editorKeysPop.hidden = false;
+      els.editorKeysPop.removeAttribute("hidden");
+      els.btnEditorKeys.setAttribute("aria-expanded", "true");
+    } else {
+      els.editorKeysPop.hidden = true;
+      els.editorKeysPop.setAttribute("hidden", "");
+      els.btnEditorKeys.setAttribute("aria-expanded", "false");
+    }
+  }
+
+  function applySublimeKeymap() {
+    const mod = ace.require("ace/keyboard/sublime");
+    if (!mod || !mod.handler) {
+      throw new Error("Ace Sublime 键位未加载（检查 /static/vendor/ace/keybinding-sublime.js）");
+    }
+    aceEditor.setKeyboardHandler(mod.handler);
+
+    // App overrides on top of Sublime.
+    aceEditor.commands.addCommand({
+      name: "notesRenameSelected",
+      bindKey: { win: "F2", mac: "F2" },
+      exec: () => {
+        if (state.renaming || !state.selectedPath) return;
+        const li = els.tree.querySelector(
+          `.tree-item[data-path="${CSS.escape(state.selectedPath)}"]`
+        );
+        beginRename(li);
+      },
+      readOnly: true,
+    });
+    aceEditor.commands.addCommand({
+      name: "notesSave",
+      bindKey: { win: "Ctrl-S", mac: "Command-S" },
+      exec: () => {
+        flushSave().catch(() => {});
+      },
+    });
+
+    // Command-palette-ish: open the in-page Sublime shortcut bubble.
+    aceEditor.commands.addCommand({
+      name: "notesShowKeybindings",
+      bindKey: { win: "Ctrl-Shift-P", mac: "Command-Shift-P" },
+      exec: () => {
+        if (!els.modeTabs || els.modeTabs.hidden) return;
+        setEditorKeysPopOpen(true);
+      },
+      readOnly: true,
+    });
+  }
+
+  function initAce() {
+    if (typeof ace === "undefined") {
+      throw new Error("Ace Editor 未加载");
+    }
+    ace.config.set("basePath", ACE_BASE);
+    aceEditor = ace.edit(els.editor, {
+      theme: "ace/theme/textmate",
+      mode: "ace/mode/text",
+      fontSize: "15px",
+      showPrintMargin: false,
+      wrap: true,
+      useSoftTabs: true,
+      tabSize: 2,
+      navigateWithinSoftTabs: true,
+      scrollPastEnd: 0.35,
+      highlightActiveLine: true,
+      fixedWidthGutter: true,
+    });
+    aceEditor.setShowFoldWidgets(true);
+    aceEditor.renderer.setPadding(12);
+    aceEditor.renderer.setScrollMargin(8, 8, 0, 0);
+
+    applySublimeKeymap();
+
+    aceEditor.session.on("change", () => {
+      if (applyingEditorValue) return;
+      scheduleSave();
+    });
+  }
+
   function clearEditor() {
     state.currentPath = null;
     state.isMarkdown = false;
     state.isPdf = false;
     state.dirty = false;
     state.lastContent = "";
-    els.editor.value = "";
+    setEditorValue("");
     clearPdfViewer();
     els.currentPath.textContent = "未选择文件";
     setSaveStatus("");
@@ -204,6 +397,7 @@
       els.preview.hidden = true;
       els.editor.hidden = true;
       if (els.pdfViewer) els.pdfViewer.hidden = true;
+      setEditorKeysPopOpen(false);
       return;
     }
 
@@ -211,6 +405,7 @@
       els.preview.hidden = true;
       els.editor.hidden = true;
       if (els.pdfViewer) els.pdfViewer.hidden = false;
+      setEditorKeysPopOpen(false);
       return;
     }
 
@@ -220,12 +415,13 @@
     }
 
     if (state.isMarkdown && state.mode === "preview") {
-      renderMarkdown(els.editor.value);
+      renderMarkdown(getEditorValue());
       els.preview.hidden = false;
       els.editor.hidden = true;
     } else {
       els.preview.hidden = true;
       els.editor.hidden = false;
+      resizeEditor();
     }
 
     els.tabPreview.classList.toggle("active", state.mode === "preview");
@@ -330,14 +526,15 @@
     if (state.isPdf) {
       state.mode = "preview";
       state.lastContent = "";
-      els.editor.value = "";
+      setEditorValue("");
       markSelection();
       updateView();
       showPdfViewer(data.path);
     } else {
       clearPdfViewer();
       state.lastContent = data.content ?? "";
-      els.editor.value = state.lastContent;
+      setEditorModeForFile(state.isMarkdown);
+      setEditorValue(state.lastContent);
       markSelection();
       updateView();
     }
@@ -345,7 +542,7 @@
 
   async function saveCurrent() {
     if (!state.currentPath || state.isPdf) return;
-    const content = els.editor.value;
+    const content = getEditorValue();
     if (content === state.lastContent && !state.dirty) {
       setSaveStatus("已保存", "saved");
       return;
@@ -862,15 +1059,30 @@
     });
   }
 
-  els.editor.addEventListener("input", () => {
-    scheduleSave();
-    if (state.isMarkdown && state.mode === "preview") {
-      renderMarkdown(els.editor.value);
-    }
-  });
-
   els.tabPreview.addEventListener("click", () => setMode("preview"));
   els.tabEdit.addEventListener("click", () => setMode("edit"));
+
+  if (els.btnEditorKeys) {
+    els.btnEditorKeys.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const open = els.editorKeysPop.hasAttribute("hidden") || els.editorKeysPop.hidden;
+      setEditorKeysPopOpen(open);
+    });
+  }
+  if (els.btnEditorKeysClose) {
+    els.btnEditorKeysClose.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      setEditorKeysPopOpen(false);
+    });
+  }
+  document.addEventListener("click", (ev) => {
+    if (!els.editorHelp || !els.modeTabs || els.modeTabs.hidden) return;
+    if (els.editorHelp.contains(ev.target)) return;
+    setEditorKeysPopOpen(false);
+  });
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") setEditorKeysPopOpen(false);
+  });
 
   const SIDEBAR_W_KEY = "notes-browser-sidebar-w";
   const SIDEBAR_MIN = 180;
@@ -885,6 +1097,7 @@
     const w = clampSidebarWidth(px);
     document.documentElement.style.setProperty("--sidebar-w", `${w}px`);
     els.sidebar.style.width = `${w}px`;
+    resizeEditor();
     return w;
   }
 
@@ -930,16 +1143,19 @@
     window.addEventListener("resize", () => {
       const current = els.sidebar.getBoundingClientRect().width;
       if (current > 0) applySidebarWidth(current);
+      else resizeEditor();
     });
   }
 
   els.btnCollapse.addEventListener("click", () => {
     els.sidebar.classList.add("collapsed");
     els.btnReopen.hidden = false;
+    resizeEditor();
   });
   els.btnReopen.addEventListener("click", () => {
     els.sidebar.classList.remove("collapsed");
     els.btnReopen.hidden = true;
+    resizeEditor();
   });
 
   els.btnNewDir.addEventListener("click", () => {
@@ -1006,6 +1222,12 @@
   async function init() {
     hideStatus();
     setExtMenuOpen(false);
+    try {
+      initAce();
+    } catch (err) {
+      showStatus(`编辑器初始化失败: ${err.message}`, "error", 0);
+      return;
+    }
     initSidebarResize();
     loadCollapsedFromStorage();
     try {
